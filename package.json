@@ -1,8 +1,8 @@
 {
   "name": "mernquiz",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "An interactive, CLI-based, AI-powered MERN Stack Rapid Fire Quiz application that prompts users with backend, database, logic, styling, and frontend coding snippets, opening their favorite text editor to capture and grade answers via OpenAI.",
+  "main": "quiz.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
