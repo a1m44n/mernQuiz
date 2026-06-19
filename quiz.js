@@ -1,15 +1,14 @@
-/* MERN Stack Quiz - "Rapid Fire" Edition
-   Features: 
-   - Auto-resume on file close (No "Press Enter" required)
-   - Smarter validation (ignores default comments)
-   - .js syntax highlighting
+/* Rapid Fire Quiz - AI Powered
+   Features:
+   - Multiple question banks (MERN, Java Spring Boot)
+   - Inline terminal input — no editor switching
+   - Press Enter 3 times to submit, blank to skip
+   - AI-powered grading via OpenAI
 */
 
-const inquirer = require('inquirer');
 const OpenAI = require('openai');
 const colors = require('colors');
-const fs = require('fs');
-const { execSync } = require('child_process');
+const readline = require('readline');
 require('dotenv').config();
 
 // --- CONFIGURATION ---
@@ -17,197 +16,39 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-const TEMP_FILENAME = 'answer.js'; 
-const DEFAULT_TEXT = '// Type your code below this line...';
-
-// --- RAPID FIRE QUESTION BANK ---
-const questions = [
-    // STAGE 1: SERVER SETUP
-    {
-        id: 1,
-        type: "snippet",
-        stage: "Stage 1: Backend",
-        question: "Write the single line of code used to initialize an Express application instance.",
-        reference: "const app = express();"
-    },
-    {
-        id: 2,
-        type: "snippet",
-        stage: "Stage 1: Backend",
-        question: "Write the code to listen on port 4000 and log a message when ready.",
-        reference: `app.listen(4000, () => {\n  console.log('listening on port 4000')\n})`
-    },
-    {
-        id: 3,
-        type: "snippet",
-        stage: "Stage 1: Backend",
-        question: "Write the command to install `nodemon` globally.",
-        reference: "npm install -g nodemon"
-    },
-
-    // STAGE 2: DATABASE
-    {
-        id: 4,
-        type: "snippet",
-        stage: "Stage 2: Database",
-        question: "Write the specific 'mongoose.connect' line using the environment variable 'MONGO_URI'.",
-        reference: "await mongoose.connect(process.env.MONGO_URI);"
-    },
-    {
-        id: 5,
-        type: "snippet",
-        stage: "Stage 2: Database",
-        question: "In server.js, what line connects your '/api/notes' endpoint to the 'notesRoutes' file?",
-        reference: `app.use("/api/notes", notesRoutes);`
-    },
-
-    // STAGE 3: LOGIC & CONTROLLERS
-    {
-        id: 6,
-        type: "snippet",
-        stage: "Stage 3: Logic",
-        question: "Write the Schema definition object for a 'title' field that is a String and required.",
-        reference: `title: { type: String, required: true }`
-    },
-    {
-        id: 7,
-        type: "snippet",
-        stage: "Stage 3: Logic",
-        question: "Write the Mongoose command to create a model named 'Note' from a schema named 'noteSchema'.",
-        reference: `const Note = mongoose.model("Note", noteSchema);`
-    },
-    {
-        id: 8,
-        type: "snippet",
-        stage: "Stage 3: Logic",
-        question: "Inside a controller, write the line that actually SAVES a new note instance to the database (assume 'note' is the object).",
-        reference: "const savedNote = await note.save();"
-    },
-    {
-        id: 9,
-        type: "snippet",
-        stage: "Stage 3: Logic",
-        question: "Write the line to export 'getAllNotes' so it can be used in other files.",
-        reference: "module.exports = { getAllNotes };"
-    },
-
-    // STAGE 4: FRONTEND
-    {
-        id: 10,
-        type: "snippet",
-        stage: "Stage 4: Frontend",
-        question: "In 'main.jsx', what component must wrap <App /> to enable the router?",
-        reference: "<BrowserRouter>"
-    },
-    {
-        id: 11,
-        type: "snippet",
-        stage: "Stage 4: Frontend",
-        question: "Write a Route component for the home path '/' that renders the <HomePage /> component.",
-        reference: `<Route path="/" element={<HomePage/>} />`
-    },
-
-    // STAGE 5: STYLING
-    {
-        id: 12,
-        type: "snippet",
-        stage: "Stage 5: Styling",
-        question: "Write the command to initialize a tailwind config file.",
-        reference: "npx tailwindcss init -p"
-    },
-    {
-        id: 13,
-        type: "snippet",
-        stage: "Stage 1: Backend",
-        question: "Write the command to initialize a new 'package.json' file with default settings.",
-        reference: "npm init -y"
-    },
-    {
-        id: 14,
-        type: "snippet",
-        stage: "Stage 1: Backend",
-        question: "Which folder do you create to store your route definitions?",
-        reference: "routes"
-    },
-    {
-        id: 15,
-        type: "snippet",
-        stage: "Stage 1: Backend",
-        question: "Write the line to import the 'express' library at the top of a file.",
-        reference: "const express = require('express');"
-    },
-
-    // STAGE 2: CONFIG & ENV
-    {
-        id: 16,
-        type: "snippet",
-        stage: "Stage 2: Database",
-        question: "Write the line in your .env file that sets the server port to 5001.",
-        reference: "PORT=5001"
-    },
-    {
-        id: 17,
-        type: "snippet",
-        stage: "Stage 2: Database",
-        question: "In 'db.js', what command is used to stop the process if the database connection fails?",
-        reference: "process.exit(1);"
-    },
-
-    // STAGE 3: LOGIC (CONTROLLERS & ROUTES)
-    {
-        id: 18,
-        type: "snippet",
-        stage: "Stage 3: Logic",
-        question: "Write the line to initialize an Express Router instance.",
-        reference: "const router = express.Router();"
-    },
-    {
-        id: 19,
-        type: "snippet",
-        stage: "Stage 3: Logic",
-        question: "Write the HTTP method function to handle a POST request to the root path '/' inside a router.",
-        reference: "router.post('/', createNote);"
-    },
-    {
-        id: 20,
-        type: "snippet",
-        stage: "Stage 3: Logic",
-        question: "In a controller, how do you send a JSON response with a status code of 200?",
-        reference: "res.status(200).json(notes)"
-    },
-
-    // STAGE 4: FRONTEND LOGIC
-    {
-        id: 21,
-        type: "snippet",
-        stage: "Stage 4: Frontend",
-        question: "What command do you run to install 'react-router' and 'react-hot-toast'?",
-        reference: "npm i react-router react-hot-toast"
-    },
-    {
-        id: 22,
-        type: "snippet",
-        stage: "Stage 4: Frontend",
-        question: "Write the boilerplate arrow function for a component named 'HomePage' and export it.",
-        reference: `const HomePage = () => {\n  return <div>HomePage</div>;\n};\nexport default HomePage;`
-    },
-
-    // STAGE 5: STYLING & TOOLS
-    {
-        id: 23,
-        type: "snippet",
-        stage: "Stage 5: Styling",
-        question: "What package do you install to get the 'daisyui' component library?",
-        reference: "npm i daisyui@4.12.24 -D"
-    },
-    {
-        id: 24,
-        type: "snippet",
-        stage: "Stage 5: Styling",
-        question: "Write the line to add the 'daisyui' plugin inside the 'tailwind.config.js' plugins array.",
-        reference: "require('daisyui')"
-    }
+// --- QUESTION BANKS ---
+const quizBanks = [
+    { name: 'MERN Stack',        file: './questions-mern'        },
+    { name: 'Java Spring Boot',  file: './questions-springboot'  },
 ];
+
+// --- QUIZ SELECTOR ---
+async function selectQuiz() {
+    return new Promise((resolve) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+            prompt: '',
+        });
+
+        console.log(colors.bold.white('  Select a quiz:\n'));
+        quizBanks.forEach((bank, i) => {
+            console.log(`  ${colors.cyan(`[${i + 1}]`)}  ${bank.name}`);
+        });
+        console.log('');
+
+        rl.question(colors.yellow('  > '), (answer) => {
+            rl.close();
+            const index = parseInt(answer.trim(), 10) - 1;
+            if (isNaN(index) || !quizBanks[index]) {
+                console.log(colors.red('\n  Invalid choice. Defaulting to MERN Stack.'));
+                resolve(quizBanks[0]);
+            } else {
+                resolve(quizBanks[index]);
+            }
+        });
+    });
+}
 
 // --- UTILITIES ---
 
@@ -222,7 +63,7 @@ function shuffle(array) {
 async function gradeWithAI(question, reference, userAnswer) {
     try {
         const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini", 
+            model: "gpt-4o-mini",
             messages: [
                 {
                     role: "system",
@@ -248,59 +89,46 @@ async function gradeWithAI(question, reference, userAnswer) {
     }
 }
 
-// --- CUSTOM EDITOR HANDLER (BLOCKING) ---
-function captureCodeFromEditor() {
-    // 1. Create file with default text
-    fs.writeFileSync(TEMP_FILENAME, DEFAULT_TEXT);
+// --- INLINE INPUT ---
 
-    console.log(colors.cyan("  >> Opening editor... (Save & Close file to submit)"));
+// Captures multi-line input from the terminal.
+// User types their answer line by line, then types '---' alone on a new line to submit.
+// Submitting blank (just '---' with no content) skips the question.
+function captureInlineAnswer() {
+    return new Promise((resolve) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+            prompt: '',
+        });
 
-    try {
-        // 2. Open editor synchronously (BLOCKS until close)
-        // cmd /c ensures it runs correctly in Windows shell
-        execSync(`${process.env.EDITOR_CMD} ${TEMP_FILENAME}`, { stdio: 'inherit' });
-    } catch (e) {
-        console.log(colors.red("Error launching editor. Make sure it is installed and in your PATH."));
-    }
+        console.log(colors.cyan('\n  ✏  Type your answer. Press ') + colors.bold.white('Enter 3 times') + colors.cyan(' to submit (submit blank to skip):\n'));
 
-    // 3. Read content immediately after close
-    let content = "";
-    try {
-        content = fs.readFileSync(TEMP_FILENAME, 'utf8');
-    } catch (e) {
-        return "";
-    }
+        const lines = [];
+        let consecutiveBlanks = 0;
 
-    // 4. Cleanup
-    try {
-        fs.unlinkSync(TEMP_FILENAME);
-    } catch (e) { /* ignore */ }
+        rl.on('line', (line) => {
+            if (line.trim() === '') {
+                consecutiveBlanks++;
+                if (consecutiveBlanks >= 2) {
+                    rl.close();
+                } else {
+                    lines.push(line); // keep first blank in case it's part of multi-line code
+                }
+            } else {
+                consecutiveBlanks = 0;
+                lines.push(line);
+            }
+        });
 
-    // 5. Sanitize Answer
-    const cleanContent = content.replace(DEFAULT_TEXT, '').trim();
-    return cleanContent;
-}
-
-// --- EDITOR SETUP ---
-
-async function setupEditor() {
-    const { editorChoice } = await inquirer.prompt([
-        {
-            type: 'list',
-            name: 'editorChoice',
-            message: 'Select your preferred code editor:',
-            choices: [
-                // THE KEY FIX: Using 'cmd /c code --wait' ensures Node pauses until the tab closes
-                { name: 'VS Code', value: 'cmd /c code --wait' }, 
-                { name: 'Notepad', value: 'notepad' }, 
-                { name: 'Vim', value: 'vim' },
-                { name: 'Nano', value: 'nano' }
-            ]
-        }
-    ]);
-
-    process.env.EDITOR_CMD = editorChoice;
-    console.log(colors.cyan(`✔ Editor configured.`));
+        rl.on('close', () => {
+            // Strip any trailing blank lines before grading
+            while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+                lines.pop();
+            }
+            resolve(lines.join('\n').trim());
+        });
+    });
 }
 
 // --- MAIN LOOP ---
@@ -308,59 +136,90 @@ async function setupEditor() {
 async function runQuiz() {
     console.clear();
     console.log(colors.rainbow("============================================="));
-    console.log(colors.bold.white("      MERN RAPID FIRE QUIZ (AI POWERED)      "));
-    console.log(colors.rainbow("============================================="));
-    
+    console.log(colors.bold.white("        RAPID FIRE QUIZ  (AI POWERED)        "));
+    console.log(colors.rainbow("=============================================\n"));
+
     if (!process.env.OPENAI_API_KEY) {
         console.log(colors.red("ERROR: No API Key found in .env file."));
         process.exit(1);
     }
 
-    try {
-        await setupEditor();
+    const selected = await selectQuiz();
+    const questions = require(selected.file);
 
+    console.log(colors.gray(`\n  ${questions.length} questions  |  Press Enter 3× to submit  |  Blank = skip\n`));
+
+    try {
         const shuffledQuestions = shuffle(questions);
         let score = 0;
+        let attempted = 0;
+        let skipped = 0;
+
+        // Track per-stage results for the breakdown
+        const stageResults = {};
 
         for (let i = 0; i < shuffledQuestions.length; i++) {
             const q = shuffledQuestions[i];
-            
-            console.log(`\n${colors.yellow("Question " + (i + 1) + "/" + shuffledQuestions.length)} [${q.stage}]`);
+
+            // Init stage tracker on first encounter
+            if (!stageResults[q.stage]) {
+                stageResults[q.stage] = { correct: 0, total: 0 };
+            }
+
+            console.log(`\n${colors.yellow(`Question ${i + 1}/${shuffledQuestions.length}`)} ${colors.gray(`[${q.stage}]`)}`);
             console.log(colors.bold.white(q.question));
             console.log(colors.gray("------------------------------------------------"));
 
-            // Pause to let user read
-            await inquirer.prompt([
-                { type: 'input', name: 'continue', message: 'Press ENTER to open editor...' }
-            ]);
+            const userAnswer = await captureInlineAnswer();
 
-            // Open custom editor (Blocks execution until closed)
-            const userAnswer = captureCodeFromEditor();
-
+            // Blank submission = skip
             if (!userAnswer) {
-                console.log(colors.red("No answer provided (or file was blank)."));
-                console.log(colors.green("Reference:\n" + q.reference));
+                skipped++;
+                console.log(colors.gray("  — Skipped."));
+                console.log(colors.green("  Reference: ") + q.reference);
+                console.log(colors.gray("------------------------------------------------"));
                 continue;
             }
 
-            console.log(colors.blue("Checking logic..."));
+            attempted++;
+            stageResults[q.stage].total++;
+
+            console.log(colors.blue("\n  Checking with AI..."));
             const result = await gradeWithAI(q.question, q.reference, userAnswer);
 
             if (result.correct) {
-                console.log(colors.green.bold("✔ CORRECT!"));
+                console.log(colors.green.bold("  ✔ CORRECT!"));
                 score++;
+                stageResults[q.stage].correct++;
             } else {
-                console.log(colors.red.bold("✘ INCORRECT"));
-                console.log(colors.yellow("Feedback: " + result.feedback));
-                console.log(colors.green("Reference Code:\n" + q.reference));
+                console.log(colors.red.bold("  ✘ INCORRECT"));
+                console.log(colors.yellow("  Feedback : ") + result.feedback);
+                console.log(colors.green("  Reference: ") + q.reference);
             }
-            
+
             console.log(colors.gray("------------------------------------------------"));
         }
 
-        console.log("\n=============================================");
-        console.log(colors.bold.white(`FINAL SCORE: ${score}/${questions.length}`));
-        console.log("=============================================");
+        // --- FINAL SUMMARY ---
+        console.log("\n" + colors.rainbow("============================================="));
+        console.log(colors.bold.white(`  FINAL SCORE: ${score}/${attempted} answered correctly`));
+        if (skipped > 0) {
+            console.log(colors.gray(`  (${skipped} question${skipped > 1 ? 's' : ''} skipped)`));
+        }
+        console.log(colors.rainbow("============================================="));
+
+        // Per-stage breakdown
+        console.log(colors.bold.white("\n  Results by stage:\n"));
+        for (const [stage, data] of Object.entries(stageResults)) {
+            const pct = Math.round((data.correct / data.total) * 100);
+            const bar = pct >= 80
+                ? colors.green(`${data.correct}/${data.total} (${pct}%)`)
+                : pct >= 50
+                    ? colors.yellow(`${data.correct}/${data.total} (${pct}%)`)
+                    : colors.red(`${data.correct}/${data.total} (${pct}%)`);
+            console.log(`  ${colors.gray(stage.padEnd(22))} ${bar}`);
+        }
+        console.log("");
 
     } catch (err) {
         console.log(colors.red("\nCRITICAL ERROR: " + err.message));
